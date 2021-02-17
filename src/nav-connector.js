@@ -1,24 +1,132 @@
-const EventEmitter = require('events');
+const axiosCreate = require('axios').create;
+
+const defaultBaseUrl = 'https://api.onlineszamla.nav.gov.hu/invoiceService/';
+
+const manageInvoice = require('../src/manage-invoice.js');
+const queryInvoiceStatus = require('../src/query-invoice-status.js');
+const testConnection = require('../src/test-connection.js');
+const queryInvoiceData = require('../src/query-invoice-data.js');
+const queryTaxpayer = require('../src/query-taxpayer.js');
 
 /** Class representing a NAV online interface.
- * @extends EventEmitter
  */
-class NavConnector extends EventEmitter {
+module.exports = class NavConnector {
   /**
    * Create a navConnector.
-   * @param {Object} technicalUser Technical user data.
-   * @param {string} technicalUser.login - Technical user’s login name.
-   * @param {string} technicalUser.password - Technical user’s password.
-   * @param {string} technicalUser.taxNumber - Tax number of the taxpayer using the interface
-   * service, to whom the technical user is assigned.
-   * @param {string} technicalUser.signatureKey - Technical user’s signature key.
-   * @param {string} technicalUser.exchangeKey - Technical user’s exchange key (replacement key).
+   * @param {Object} params Constructor params.
+   * @param {Object} params.technicalUser Technical user data.
+   * @param {Object} params.softwareData Software data.
+   * @param {string} [params.baseURL=https://api.onlineszamla.nav.gov.hu/invoiceService/] Axios baseURL.
+   * @param {number} [params.timeout=70000] Axios default timeout integer in milliseconds.
    */
-  constructor(technicalUser) {
-    super();
-
+  constructor({
+    technicalUser,
+    softwareData,
+    baseURL = defaultBaseUrl,
+    timeout = 70000,
+  }) {
     this.technicalUser = technicalUser;
-  }
-}
+    this.softwareData = softwareData;
 
-module.exports = NavConnector;
+    this.axios = axiosCreate({
+      baseURL,
+      timeout,
+      headers: {
+        'content-type': 'application/xml',
+        accept: 'application/xml',
+        encoding: 'UTF-8',
+      },
+    });
+  }
+
+  /**
+   * Send request to NAV service to manage invoices.
+   * @async
+   * @param {Object} invoiceOperations Request object for xml conversion and send.
+   * @returns {Promise<string>} Manage invoice operation transaction id.
+   */
+  async manageInvoice(invoiceOperations) {
+    const { technicalUser, softwareData, axios } = this;
+
+    return manageInvoice({
+      invoiceOperations,
+      technicalUser,
+      softwareData,
+      axios,
+    });
+  }
+
+  /**
+   * Get the result of a previously sent manage invoice request.
+   * @async
+   * @param {Object} params Function params.
+   * @param {string} params.transactionId Manage invoice operation transaction id.
+   * @param {boolean} [params.returnOriginalRequest=false] Flag for api response to contain the original invoice.
+   * @returns {Promise<Array>} processingResults
+   */
+  async queryInvoiceStatus({ transactionId, returnOriginalRequest = false }) {
+    const { technicalUser, softwareData, axios } = this;
+
+    return queryInvoiceStatus({
+      transactionId,
+      returnOriginalRequest,
+      technicalUser,
+      softwareData,
+      axios,
+    });
+  }
+
+  /**
+   * Test connection, user auth data and keys validity with a tokenExchangeRequest.
+   * @async
+   * @throws {Object} Will throw an error if there was a network expectation
+   * or any user given auth data or key is invalid.
+   */
+  async testConnection() {
+    const { technicalUser, softwareData, axios } = this;
+
+    return testConnection({
+      technicalUser,
+      softwareData,
+      axios,
+    });
+  }
+
+  /**
+   * Query previously sent invoices with invoice number or query params.
+   * @async
+   * @param {Object} params Function params.
+   * @param {number} params.page Integer page to query.
+   * @param {Object} params.invoiceQuery Query single invoice with invoice number.
+   * @param {Object} params.queryParams Query multiple invoices with params.
+   * @returns {Promise<Object>} response
+   */
+  async queryInvoiceData({ page, invoiceQuery, queryParams }) {
+    const { technicalUser, softwareData, axios } = this;
+
+    return queryInvoiceData({
+      page,
+      invoiceQuery,
+      queryParams,
+      technicalUser,
+      softwareData,
+      axios,
+    });
+  }
+
+  /**
+   * Get taxpayer information by tax number.
+   * @param {string} taxNumber Taxpayer tax number to get information for.
+   * @returns {Promise<Object>} Taxpayer information.
+   */
+  async queryTaxpayer(taxNumber) {
+    const { technicalUser, softwareData, axios } = this;
+
+    return queryTaxpayer({
+      taxNumber,
+      technicalUser,
+      softwareData,
+      axios,
+    });
+  }
+};
